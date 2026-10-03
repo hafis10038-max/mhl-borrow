@@ -119,10 +119,15 @@ app.delete('/api/inventory/:id', (req, res) => {
 });
 
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true, // true สำหรับพอร์ต 465
     auth: {
         user: 'tsumaterial69@gmail.com',
         pass: 'majfdikaklgzzgqi'
+    },
+    tls: {
+        rejectUnauthorized: false
     }
 });
 const adminEmail = 'ruttanapol.g@tsu.ac.th';
