@@ -122,7 +122,7 @@ const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
         user: 'tsumaterial69@gmail.com',
-        pass: 'sxkatrtejqzgexvk'
+        pass: 'majfdikaklgzzgqi'
     }
 });
 const adminEmail = 'ruttanapol.g@tsu.ac.th';
