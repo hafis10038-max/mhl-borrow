@@ -30,7 +30,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const returnDateInput = document.getElementById('returnDate');
         if(returnDateInput) returnDateInput.min = new Date().toISOString().split('T')[0];
 
-        // ระบบอัปโหลดและบีบอัดรูปภาพอัตโนมัติ
         const photoInput = document.getElementById('itemPhoto');
         let selectedFileBase64 = "";
 
@@ -51,7 +50,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
                         selectedFileBase64 = canvas.toDataURL('image/jpeg', 0.7);
-                        
                         document.getElementById('photoPreview').src = selectedFileBase64;
                         document.getElementById('photoPreviewContainer').style.display = 'block';
                     };
@@ -72,7 +70,6 @@ document.addEventListener('DOMContentLoaded', () => {
             saveUserInfo();
             Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
-            // ตรวจสอบว่าเลือก "อื่นๆ" หรืออุปกรณ์ปกติ
             const selectedItemValue = document.getElementById('selectedItemName').value;
             let finalItemName = selectedItemValue;
             let finalQty = 1;
@@ -83,7 +80,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 finalQty = parseInt(oQty) || 1;
                 finalItemName = `${oName} (จำนวน: ${finalQty} ชิ้น)`;
             } else {
-                // อ่านค่าจำนวนจากช่องที่เราเพิ่งเพิ่มไปใน index.html
                 const regQtyInput = document.getElementById('regularBorrowQty');
                 finalQty = regQtyInput ? parseInt(regQtyInput.value) || 1 : 1;
                 finalItemName = `${selectedItemValue} (จำนวน: ${finalQty} ชิ้น)`;
@@ -96,7 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 studentId: document.getElementById('studentId').value,
                 phone: document.getElementById('phone').value,
                 items: finalItemName,
-                borrowQty: finalQty, // 🟢 ส่งจำนวนชิ้นไปหักลบในเซิร์ฟเวอร์
+                borrowQty: finalQty,
                 borrowDate: new Date().toISOString().split('T')[0],
                 returnDate: document.getElementById('returnDate').value,
                 photoData: selectedFileBase64
@@ -110,6 +106,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 
                 if(res.ok) {
+                    // 🟢 โค้ดส่งอีเมลแจ้งเตือนผ่าน EmailJS
+                    emailjs.send("service_hdn27nq", "template_oc53e9m", {
+                        to_email: "ruttanapol.g@tsu.ac.th",
+                        full_name: document.getElementById('fullName').value,
+                        faculty: document.getElementById('faculty').value,
+                        student_id: document.getElementById('studentId').value || '-',
+                        phone: document.getElementById('phone').value,
+                        items: finalItemName,
+                        return_date: document.getElementById('returnDate').value
+                    }).then(
+                        function(response) { console.log("ส่งเมลสำเร็จ", response); },
+                        function(error) { console.log("ส่งเมลไม่สำเร็จ", error); }
+                    );
+
                     Swal.fire('สำเร็จ', 'ส่งข้อมูลเรียบร้อย', 'success').then(() => {
                         cancelBorrow();
                         loadFrontendEquipment();
@@ -123,10 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 3. หน้า Admin
-    if (document.getElementById('inventoryTableBody')) {
-        loadAdminData();
-    }
+    if (document.getElementById('inventoryTableBody')) { loadAdminData(); }
 });
 
 function saveUserInfo() {
@@ -145,7 +152,6 @@ function loadSavedUserInfo() {
     if(localStorage.getItem('tsu_phone')) document.getElementById('phone').value = localStorage.getItem('tsu_phone');
 }
 
-// หน้าแรก: โหลดรายการอุปกรณ์ + เพิ่มปุ่ม "อื่นๆ" อัตโนมัติ
 async function loadFrontendEquipment() {
     const itemGrid = document.getElementById('itemGrid');
     const res = await fetch('/api/items');
@@ -155,8 +161,6 @@ async function loadFrontendEquipment() {
     items.forEach(item => {
         const statusClass = item.isAvailable ? 'status-avail' : 'status-busy';
         const cardClass = item.isAvailable ? 'card-avail' : 'card-busy';
-        
-        // แสดงจำนวนที่เหลือด้วย
         const qtyText = item.availableCount !== undefined ? `(เหลือ ${item.availableCount} ชิ้น)` : '';
         const statusText = item.isAvailable ? `ว่างพร้อมยืม ${qtyText}` : 'ถูกยืมครบแล้ว';
         const btnState = item.isAvailable ? '' : 'disabled';
@@ -175,7 +179,6 @@ async function loadFrontendEquipment() {
         `;
     });
 
-    // เพิ่มการ์ด "อื่นๆ (ระบุเอง)" ต่อท้ายเสมอ
     itemGrid.innerHTML += `
         <div class="item-card card-avail" style="padding:20px; background:white; border-radius:12px; box-shadow:0 2px 10px rgba(0,0,0,0.05); display:flex; flex-direction:column; justify-content:space-between;">
             <div>
@@ -189,12 +192,10 @@ async function loadFrontendEquipment() {
     `;
 }
 
-// 🟢 จัดการการเลือกอุปกรณ์ (แสดง/ซ่อน ช่องจำนวน)
 function selectItemToBorrow(name, maxAvailable = 1) {
     const otherContainer = document.getElementById('otherItemContainer');
     const otherName = document.getElementById('otherItemName');
     const otherQty = document.getElementById('otherItemQty');
-    
     const regularQtyContainer = document.getElementById('regularQtyContainer');
     const regularQtyInput = document.getElementById('regularBorrowQty');
 
@@ -220,7 +221,7 @@ function selectItemToBorrow(name, maxAvailable = 1) {
         if(regularQtyInput) {
             regularQtyInput.required = true;
             regularQtyInput.value = 1;
-            regularQtyInput.max = maxAvailable; // กันไม่ให้พิมพ์ยืมเกินจำนวนที่เหลือ
+            regularQtyInput.max = maxAvailable;
         }
     }
     
@@ -244,7 +245,6 @@ function cancelBorrow() {
     loadSavedUserInfo();
 }
 
-// โหลดตารางฝั่ง Admin
 async function loadAdminData() {
     const invRes = await fetch('/api/items');
     const items = await invRes.json();
@@ -258,7 +258,6 @@ async function loadAdminData() {
                 <td><b>${i.name}</b>${qtyDisplay}</td>
                 <td>${i.detail || '-'}</td>
                 <td style="text-align: center; min-width: 140px;">
-                    <!-- 🟢 เพิ่มปุ่มแก้ไขตรงนี้ -->
                     <button style="background:#ffc107; color:#000; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; margin-right:5px; font-weight:bold;" 
                             onclick="editItem(${i.id}, '${i.name}', '${i.detail || ''}', ${i.quantity || 1})">แก้ไข</button>
                     <button class="btn-del" onclick="deleteItem(${i.id})">ลบ</button>
@@ -293,7 +292,6 @@ async function loadAdminData() {
     });
 }
 
-// 🟢 ฟังก์ชันแก้ไขอุปกรณ์สำหรับแอดมิน (สร้างใหม่)
 async function editItem(id, oldName, oldDetail, oldQty) {
     const { value: formValues } = await Swal.fire({
         title: 'แก้ไขอุปกรณ์',
@@ -324,12 +322,11 @@ async function editItem(id, oldName, oldDetail, oldQty) {
         });
         if(res.ok) {
             Swal.fire('สำเร็จ', 'อัปเดตข้อมูลเรียบร้อย', 'success');
-            loadAdminData(); // โหลดตารางใหม่ทันที
+            loadAdminData();
         }
     }
 }
 
-// แอดมินเพิ่มอุปกรณ์
 async function openAddItemModal() {
     const { value: formValues } = await Swal.fire({
         title: 'เพิ่มอุปกรณ์ใหม่',
@@ -357,7 +354,7 @@ async function openAddItemModal() {
         });
         if(res.ok) {
             Swal.fire('สำเร็จ', 'เพิ่มเข้าสู่ระบบแล้ว', 'success');
-            loadAdminData(); // อัปเดตตารางแอดมินทันที
+            loadAdminData();
         }
     }
 }
@@ -378,26 +375,4 @@ async function returnItem(id) {
 window.logout = function() {
     localStorage.removeItem('tsu_auth');
     window.location.href = 'login.html';
-}
-// หลังจากบันทึกข้อมูลลงฐานข้อมูลสำเร็จ (ใน fetch('/api/borrow')) ให้เพิ่มชุดคำสั่งนี้เข้าไป:
-if(res.ok) {
-    // 🟢 สั่งส่งอีเมลแจ้งเตือนผ่าน EmailJS ทันทีตรงนี้
-    emailjs.send("ใส่ Service ID ของคุณ", "ใส่ Template ID ของคุณ", {
-        full_name: document.getElementById('fullName').value,
-        to_email: "6920320041@tsu.ac.th", // อีเมลแอดมินรับแจ้งเตือน
-        faculty: document.getElementById('faculty').value,
-        student_id: document.getElementById('studentId').value || '-',
-        phone: document.getElementById('phone').value,
-        items: finalItemName,
-        return_date: document.getElementById('returnDate').value
-    }).then(() => {
-        console.log("ส่งเมลสำเร็จ");
-    }).catch((err) => {
-        console.log("ส่งเมลไม่สำเร็จ", err);
-    });
-
-    Swal.fire('สำเร็จ', 'ส่งข้อมูลและแจ้งเตือนเรียบร้อย', 'success').then(() => {
-        cancelBorrow();
-        loadFrontendEquipment();
-    });
 }
