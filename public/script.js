@@ -379,3 +379,25 @@ window.logout = function() {
     localStorage.removeItem('tsu_auth');
     window.location.href = 'login.html';
 }
+// หลังจากบันทึกข้อมูลลงฐานข้อมูลสำเร็จ (ใน fetch('/api/borrow')) ให้เพิ่มชุดคำสั่งนี้เข้าไป:
+if(res.ok) {
+    // 🟢 สั่งส่งอีเมลแจ้งเตือนผ่าน EmailJS ทันทีตรงนี้
+    emailjs.send("ใส่ Service ID ของคุณ", "ใส่ Template ID ของคุณ", {
+        full_name: document.getElementById('fullName').value,
+        to_email: "6920320041@tsu.ac.th", // อีเมลแอดมินรับแจ้งเตือน
+        faculty: document.getElementById('faculty').value,
+        student_id: document.getElementById('studentId').value || '-',
+        phone: document.getElementById('phone').value,
+        items: finalItemName,
+        return_date: document.getElementById('returnDate').value
+    }).then(() => {
+        console.log("ส่งเมลสำเร็จ");
+    }).catch((err) => {
+        console.log("ส่งเมลไม่สำเร็จ", err);
+    });
+
+    Swal.fire('สำเร็จ', 'ส่งข้อมูลและแจ้งเตือนเรียบร้อย', 'success').then(() => {
+        cancelBorrow();
+        loadFrontendEquipment();
+    });
+}
