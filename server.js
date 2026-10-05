@@ -2,7 +2,6 @@ const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
 const cron = require('node-cron');
-const nodemailer = require('nodemailer');
 const moment = require('moment');
 const path = require('path');
 
@@ -17,18 +16,16 @@ const db = new sqlite3.Database('./database.sqlite', (err) => {
     console.log('✅ เชื่อมต่อฐานข้อมูลสำเร็จ');
 });
 
-// ตารางคลังอุปกรณ์ (เพิ่ม quantity เพื่อเก็บจำนวนชิ้น)
+// ตารางคลังอุปกรณ์ 
 db.run(`CREATE TABLE IF NOT EXISTS inventory (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT,
     detail TEXT,
     quantity INTEGER DEFAULT 1
 )`);
-
-// อัปเดตตารางเก่าให้มีคอลัมน์ quantity (ถ้ายังไม่มี)
 db.run(`ALTER TABLE inventory ADD COLUMN quantity INTEGER DEFAULT 1`, (err) => {});
 
-// ตารางประวัติการยืม (เพิ่ม borrowQty เพื่อเก็บจำนวนที่ยืม)
+// ตารางประวัติการยืม 
 db.run(`CREATE TABLE IF NOT EXISTS records (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     fullName TEXT,
@@ -44,8 +41,6 @@ db.run(`CREATE TABLE IF NOT EXISTS records (
     status TEXT,
     returnedAt TEXT
 )`);
-
-// อัปเดตตารางเก่าให้มีคอลัมน์ใหม่ (ถ้ายังไม่มี)
 db.run(`ALTER TABLE records ADD COLUMN returnedAt TEXT`, (err) => {});
 db.run(`ALTER TABLE records ADD COLUMN borrowQty INTEGER DEFAULT 1`, (err) => {});
 
@@ -59,7 +54,7 @@ app.post('/api/login', (req, res) => {
     }
 });
 
-// ดึงรายการอุปกรณ์ (พร้อมคำนวณจำนวนคงเหลือหักลบตามจำนวนชิ้นจริง)
+// ดึงรายการอุปกรณ์ 
 app.get('/api/items', (req, res) => {
     db.all(`SELECT * FROM inventory ORDER BY id DESC`, [], (err, items) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -68,7 +63,6 @@ app.get('/api/items', (req, res) => {
             if (err) return res.status(500).json({ error: err.message });
             
             const result = items.map(item => {
-                // รวมยอดของคนที่ยืมอุปกรณ์ชื่อนี้ ว่ายืมไปทั้งหมดกี่ชิ้น
                 const borrowedCount = rows
                     .filter(r => r.items === item.name || r.items.startsWith(item.name + ' (จำนวน:'))
                     .reduce((sum, r) => sum + (r.borrowQty || 1), 0);
@@ -81,7 +75,7 @@ app.get('/api/items', (req, res) => {
                     name: item.name,
                     detail: item.detail,
                     quantity: qty,
-                    isAvailable: availableCount > 0, // ว่างเมื่อเหลือมากกว่า 0 ชิ้น
+                    isAvailable: availableCount > 0, 
                     availableCount: availableCount
                 };
             });
@@ -100,7 +94,7 @@ app.post('/api/inventory', (req, res) => {
     });
 });
 
-// Admin: แก้ไขอุปกรณ์ (API ใหม่ที่เพิ่มให้)
+// Admin: แก้ไขอุปกรณ์ 
 app.put('/api/inventory/:id', (req, res) => {
     const { name, detail, quantity } = req.body;
     db.run(`UPDATE inventory SET name = ?, detail = ?, quantity = ? WHERE id = ?`, 
@@ -118,21 +112,7 @@ app.delete('/api/inventory/:id', (req, res) => {
     });
 });
 
-const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 465,
-    secure: true, // true สำหรับพอร์ต 465
-    auth: {
-        user: 'tsumaterial69@gmail.com',
-        pass: 'majfdikaklgzzgqi'
-    },
-    tls: {
-        rejectUnauthorized: false
-    }
-});
-const adminEmail = 'ruttanapol.g@tsu.ac.th';
-
-// ยืนยันการยืมของ
+// 🟢 ยืนยันการยืมของ (เอา Nodemailer ออก ตัดจบแค่บันทึกลงฐานข้อมูล)
 app.post('/api/borrow', (req, res) => {
     let { fullName, email, faculty, studentId, phone, items, borrowQty, borrowDate, returnDate, photoData } = req.body;
     const cleanEmail = email.trim(); 
@@ -144,28 +124,6 @@ app.post('/api/borrow', (req, res) => {
         if (err) return res.status(500).json({ error: err.message });
         
         res.json({ success: true });
-        
-        transporter.sendMail({
-            from: 'tsumaterial69@gmail.com', 
-            to: adminEmail,               
-            cc: cleanEmail,                    
-            subject: '🔔 [ระบบยืมของ] มีคำขอยืมอุปกรณ์ใหม่ - ฝ่ายกิจการนิสิต สำนักงานมหาวิทยาลัย',
-            html: `<div style="padding: 20px; background: #f4f6f9; border-radius: 10px; font-family: sans-serif;">
-                    <h2 style="color: #0b3d6e;">รายละเอียดคำขอยืมอุปกรณ์</h2>
-                    <p><b>ผู้ยืม:</b> ${fullName} (${faculty})</p>
-                    <p><b>รหัสนิสิต/บุคลากร:</b> ${studentId || '-'}</p>
-                    <p><b>เบอร์โทรติดต่อ:</b> ${phone}</p>
-                    <p><b>อีเมลผู้ยืม:</b> ${cleanEmail}</p>
-                    <hr>
-                    <p><b>รายการที่ยืม:</b> <span style="color: #d9534f; font-weight: bold;">${items}</span></p>
-                    <p><b>วันที่ทำรายการ:</b> ${borrowDate}</p>
-                    <p><b>กำหนดคืน:</b> <span style="color: #0b3d6e; font-weight: bold;">${returnDate}</span></p>
-                </div>`
-        }).then(() => {
-            console.log("✅ ส่งอีเมลแจ้งเตือนเบื้องหลังสำเร็จ");
-        }).catch(err => {
-            console.error("❌ ส่งอีเมลเบื้องหลังไม่ผ่าน:", err.message);
-        });
     });
 });
 
@@ -196,41 +154,6 @@ cron.schedule('0 * * * *', () => {
     db.run(`DELETE FROM records WHERE status = 'returned' AND returnedAt < ?`, [twentyFourHoursAgo], function(err) {
         if (err) console.error("❌ Error auto-deleting:", err.message);
         else if (this.changes > 0) console.log(`🗑️ ลบประวัติการคืนที่เกิน 24 ชม. อัตโนมัติสำเร็จจำนวน ${this.changes} รายการ`);
-    });
-});
-
-// 2. แจ้งเตือนอีเมลทวงของ 
-cron.schedule('0 8 * * *', () => {
-    const today = moment().format('YYYY-MM-DD');
-    const tomorrow = moment().add(1, 'days').format('YYYY-MM-DD');
-
-    db.all(`SELECT * FROM records WHERE status = 'pending'`, [], (err, rows) => {
-        if (err) return;
-        rows.forEach(record => {
-            if (record.returnDate === tomorrow) {
-                transporter.sendMail({
-                    from: 'tsumaterial69@gmail.com', 
-                    to: record.email,             
-                    cc: adminEmail,               
-                    subject: '⚠️ แจ้งเตือน: อุปกรณ์เตรียมครบกำหนดคืนพรุ่งนี้',
-                    html: `<p>เรียน คุณ ${record.fullName},</p>
-                           <p>ขอแจ้งเตือนว่าอุปกรณ์ (<b>${record.items}</b>) ที่ท่านได้ยืมไป จะครบกำหนดคืนในวันพรุ่งนี้ (${record.returnDate})</p>
-                           <p>กรุณาเตรียมนำอุปกรณ์มาคืนที่ฝ่ายกิจการนิสิต สำนักงานมหาวิทยาลัย ขอบคุณครับ</p>`
-                }).catch(console.error);
-            }
-            
-            if (record.returnDate === today) {
-                transporter.sendMail({
-                    from: 'tsumaterial69@gmail.com', 
-                    to: record.email,             
-                    cc: adminEmail,               
-                    subject: '🚨 ด่วนที่สุด: วันนี้ครบกำหนดคืนอุปกรณ์',
-                    html: `<p style="color:red;">เรียน คุณ ${record.fullName},</p>
-                           <p>วันนี้เป็นวันครบกำหนดคืนอุปกรณ์ (<b>${record.items}</b>)</p>
-                           <p>กรุณานำอุปกรณ์มาคืนที่ฝ่ายกิจการนิสิต สำนักงานมหาวิทยาลัยภายในเวลาทำการของวันนี้ ขอบคุณครับ</p>`
-                }).catch(console.error);
-            }
-        });
     });
 });
 
